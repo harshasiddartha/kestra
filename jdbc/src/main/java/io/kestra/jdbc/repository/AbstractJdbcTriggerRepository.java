@@ -12,6 +12,7 @@ import io.kestra.core.models.flows.Flow;
 import io.kestra.core.models.triggers.AbstractTrigger;
 import io.kestra.core.models.triggers.Trigger;
 import io.kestra.core.models.triggers.TriggerContext;
+import io.kestra.core.models.triggers.TriggerId;
 import io.kestra.core.repositories.ArrayListTotal;
 import io.kestra.core.repositories.TriggerRepositoryInterface;
 import io.kestra.core.runners.ScheduleContextInterface;
@@ -72,7 +73,7 @@ public abstract class AbstractJdbcTriggerRepository extends AbstractJdbcReposito
     }
 
     @Override
-    public Optional<Trigger> findLast(TriggerContext trigger) {
+    public Optional<Trigger> findLast(TriggerId trigger) {
         return this.jdbcRepository
             .getDslContextWrapper()
             .transactionResult(configuration -> {
@@ -480,6 +481,26 @@ public abstract class AbstractJdbcTriggerRepository extends AbstractJdbcReposito
                 return null;
             }
         });
+    }
+    
+    @Override
+    public List<Trigger> findByNextExecutionDateReadyForAllTenants(ZonedDateTime now, Set<Integer> vNodes) {
+        return this.jdbcRepository
+            .getDslContextWrapper()
+            .transactionResult(configuration -> {
+                return DSL.using(configuration).select(field("value"))
+                    .from(this.jdbcRepository.getTable())
+                    .where(
+                        (field("next_execution_date").lessThan(now.toOffsetDateTime())
+                            // we check for null for backwards compatibility
+                            .or(field("next_execution_date").isNull()))
+                            .and(field("execution_id").isNull())
+                            .and(field("vnode").in(vNodes))
+                    )
+                    .orderBy(field("next_execution_date").asc())
+                    .fetch()
+                    .map(r -> this.jdbcRepository.deserialize(r.get("value", String.class)));
+            });
     }
 
 

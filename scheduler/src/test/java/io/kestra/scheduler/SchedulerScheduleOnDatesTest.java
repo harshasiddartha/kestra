@@ -118,7 +118,7 @@ public class SchedulerScheduleOnDatesTest extends AbstractSchedulerTest {
 
             scheduler.run();
             queueCount.await(1, TimeUnit.MINUTES);
-            // needed for RetryingTest to work since there is no context cleaning between method => we have to clear assertion receiver manually
+            // needed for RetryingTest to work since there is no triggerContext cleaning between method => we have to clear assertion receiver manually
             receiveExecutions.blockLast();
 
             assertThat(queueCount.getCount()).isEqualTo(0L);
@@ -166,7 +166,7 @@ public class SchedulerScheduleOnDatesTest extends AbstractSchedulerTest {
             scheduler.run();
 
             queueCount.await(1, TimeUnit.MINUTES);
-            // needed for RetryingTest to work since there is no context cleaning between method => we have to clear assertion receiver manually
+            // needed for RetryingTest to work since there is no triggerContext cleaning between method => we have to clear assertion receiver manually
             receive.blockLast();
 
             assertThat(queueCount.getCount()).isEqualTo(0L);
@@ -217,7 +217,7 @@ public class SchedulerScheduleOnDatesTest extends AbstractSchedulerTest {
             scheduler.run();
 
             queueCount.await(1, TimeUnit.MINUTES);
-            // needed for RetryingTest to work since there is no context cleaning between method => we have to clear assertion receiver manually
+            // needed for RetryingTest to work since there is no triggerContext cleaning between method => we have to clear assertion receiver manually
             receive.blockLast();
 
             assertThat(queueCount.getCount()).isEqualTo(0L);

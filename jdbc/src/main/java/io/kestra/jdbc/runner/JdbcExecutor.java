@@ -12,6 +12,7 @@ import io.kestra.core.models.tasks.ExecutableTask;
 import io.kestra.core.models.tasks.Task;
 import io.kestra.core.models.tasks.WorkerGroup;
 import io.kestra.core.models.topologies.FlowTopology;
+import io.kestra.core.models.triggers.TriggerId;
 import io.kestra.core.models.triggers.multipleflows.MultipleCondition;
 import io.kestra.core.models.triggers.multipleflows.MultipleConditionStorageInterface;
 import io.kestra.core.queues.QueueException;
@@ -37,6 +38,8 @@ import io.kestra.jdbc.repository.AbstractJdbcFlowTopologyRepository;
 import io.kestra.jdbc.repository.AbstractJdbcWorkerJobRunningRepository;
 import io.kestra.plugin.core.flow.ForEachItem;
 import io.kestra.plugin.core.flow.WorkingDirectory;
+import io.kestra.scheduler.TriggerEventQueue;
+import io.kestra.scheduler.events.TriggerCompleted;
 import io.micronaut.context.annotation.Value;
 import io.micronaut.context.event.ApplicationEventPublisher;
 import io.micronaut.transaction.exceptions.CannotCreateTransactionException;
@@ -178,9 +181,9 @@ public class JdbcExecutor implements ExecutorInterface {
 
     @Inject
     private SLAService slaService;
-
+    
     @Inject
-    private TriggerRepositoryInterface triggerRepository;
+    private TriggerEventQueue triggerEventQueue;
 
     @Inject
     private SchedulerTriggerStateInterface triggerState;
@@ -1091,12 +1094,8 @@ public class JdbcExecutor implements ExecutorInterface {
                 // IMPORTANT: this is to cover an edge case, execution created for failed trigger didn't have any taskrun so they will arrive directly here.
                 // We need to detect that and reset them as they will never reach the reset code later on this method.
                 if (execution.getTrigger() != null && execution.getState().isFailed() && ListUtils.isEmpty(execution.getTaskRunList())) {
-                    FlowWithSource flow = executor.getFlow();
-                    triggerRepository
-                        .findByExecution(execution)
-                        .ifPresent(trigger -> {
-                            this.triggerState.update(executionService.resetExecution(flow, execution, trigger));
-                        });
+                    TriggerId triggerId = new TriggerId.Default(execution.getTenantId(), execution.getNamespace(), execution.getFlowId(), execution.getTrigger().getId());
+                    triggerEventQueue.send(new TriggerCompleted(triggerId, Instant.now(), execution.getId(), execution.getState().getCurrent()));
                 }
 
                 return;
@@ -1186,12 +1185,8 @@ public class JdbcExecutor implements ExecutorInterface {
 
                 // purge the trigger: reset scheduler trigger at end
                 if (execution.getTrigger() != null) {
-                    FlowWithSource flow = executor.getFlow();
-                    triggerRepository
-                        .findByExecution(execution)
-                        .ifPresent(trigger -> {
-                            this.triggerState.update(executionService.resetExecution(flow, execution, trigger));
-                        });
+                    TriggerId triggerId = new TriggerId.Default(execution.getTenantId(), execution.getNamespace(), execution.getFlowId(), execution.getTrigger().getId());
+                    triggerEventQueue.send(new TriggerCompleted(triggerId, Instant.now(), execution.getId(), execution.getState().getCurrent()));
                 }
 
                 // Purge the workerTaskResultQueue and the workerJobQueue

@@ -7,6 +7,7 @@ import java.util.Optional;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 
+@Deprecated(forRemoval = true)
 @Singleton
 public class SchedulerExecutionState implements SchedulerExecutionStateInterface {
     @Inject

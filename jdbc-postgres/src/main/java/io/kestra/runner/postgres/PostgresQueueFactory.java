@@ -10,6 +10,7 @@ import io.kestra.core.queues.QueueFactoryInterface;
 import io.kestra.core.queues.QueueInterface;
 import io.kestra.core.queues.WorkerJobQueueInterface;
 import io.kestra.core.runners.*;
+import io.kestra.scheduler.events.TriggerEvent;
 import io.micronaut.context.ApplicationContext;
 import io.micronaut.context.annotation.Bean;
 import io.micronaut.context.annotation.Factory;
@@ -142,5 +143,12 @@ public class PostgresQueueFactory implements QueueFactoryInterface {
     @Bean(preDestroy = "close")
     public QueueInterface<MultipleConditionEvent> multipleConditionEvent() {
         return new PostgresQueue<>(MultipleConditionEvent.class, applicationContext);
+    }
+    
+    @Singleton
+    @Named(QueueFactoryInterface.MULTIPLE_CONDITION_EVENT_NAMED)
+    @Bean(preDestroy = "close")
+    public QueueInterface<TriggerEvent> triggerEvent() {
+        return new PostgresQueue<>(TriggerEvent.class, applicationContext);
     }
 }

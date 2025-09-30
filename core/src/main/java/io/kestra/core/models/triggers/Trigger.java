@@ -37,34 +37,22 @@ public class Trigger extends TriggerContext implements HasUID {
     @Nullable
     @Setter // it's unfortunate but neither toBuilder() not @With works so using @Setter here
     private String workerId;
-
+    
+    @Nullable
+    private Integer vnode;
+    
     protected Trigger(TriggerBuilder<?, ?> b) {
         super(b);
         this.executionId = b.executionId;
         this.updatedDate = b.updatedDate;
         this.evaluateRunningDate = b.evaluateRunningDate;
+        this.vnode = b.vnode;
     }
 
     public static TriggerBuilder<?, ?> builder() {
         return new TriggerBuilderImpl();
     }
-
-
-    /** {@inheritDoc **/
-    @Override
-    public String uid() {
-        return uid(this);
-    }
-
-    public static String uid(Trigger trigger) {
-        return IdUtils.fromParts(
-            trigger.getTenantId(),
-            trigger.getNamespace(),
-            trigger.getFlowId(),
-            trigger.getTriggerId()
-        );
-    }
-
+    
     public static String uid(Execution execution) {
         return IdUtils.fromParts(
             execution.getTenantId(),

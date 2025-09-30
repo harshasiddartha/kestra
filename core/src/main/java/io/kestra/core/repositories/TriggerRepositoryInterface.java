@@ -4,17 +4,21 @@ import io.kestra.core.models.QueryFilter;
 import io.kestra.core.models.executions.Execution;
 import io.kestra.core.models.triggers.Trigger;
 import io.kestra.core.models.triggers.TriggerContext;
+import io.kestra.core.models.triggers.TriggerId;
+import io.kestra.core.runners.ScheduleContextInterface;
 import io.kestra.plugin.core.dashboard.data.Triggers;
 import io.micronaut.data.model.Pageable;
 import jakarta.annotation.Nullable;
 import reactor.core.publisher.Flux;
 
+import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 
 public interface TriggerRepositoryInterface extends QueryBuilderInterface<Triggers.Fields> {
-    Optional<Trigger> findLast(TriggerContext trigger);
+    Optional<Trigger> findLast(TriggerId trigger);
 
     Optional<Trigger> findByExecution(Execution execution);
 
@@ -49,6 +53,10 @@ public interface TriggerRepositoryInterface extends QueryBuilderInterface<Trigge
 
     default Function<String, String> sortMapping() throws IllegalArgumentException {
         return Function.identity();
+    }
+    
+    default List<Trigger> findByNextExecutionDateReadyForAllTenants(ZonedDateTime now, Set<Integer> vNodes) {
+        throw new UnsupportedOperationException();
     }
 }
 

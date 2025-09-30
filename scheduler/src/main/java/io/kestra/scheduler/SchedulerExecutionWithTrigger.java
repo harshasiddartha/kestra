@@ -5,6 +5,7 @@ import lombok.Getter;
 import io.kestra.core.models.executions.Execution;
 import io.kestra.core.models.triggers.TriggerContext;
 
+@Deprecated(forRemoval = true)
 @AllArgsConstructor
 @Getter
 public class SchedulerExecutionWithTrigger {

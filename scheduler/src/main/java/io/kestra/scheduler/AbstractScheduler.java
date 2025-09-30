@@ -65,6 +65,7 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @Singleton
+@Deprecated(forRemoval = true)
 @SuppressWarnings("this-escape")
 public abstract class AbstractScheduler implements Scheduler {
     protected final ApplicationContext applicationContext;
@@ -822,7 +823,7 @@ public abstract class AbstractScheduler implements Scheduler {
             trigger = trigger.resetExecution(State.Type.FAILED);
         }
 
-        // Schedule triggers are being executed directly from the handle method within the context where triggers are locked.
+        // Schedule triggers are being executed directly from the handle method within the triggerContext where triggers are locked.
         // So we must save them by passing the scheduleContext.
         this.saveLastTriggerAndEmitExecution(result.getExecution(), trigger, triggerToSave -> this.triggerState.save(triggerToSave, scheduleContext, "/kestra/services/scheduler/handleEvaluateSchedulingTriggerResult/save"));
     }
@@ -1119,19 +1120,6 @@ public abstract class AbstractScheduler implements Scheduler {
         private AbstractTrigger abstractTrigger;
         private Trigger triggerContext;
         private ConditionContext conditionContext;
-
-        public FlowWithWorkerTrigger from(FlowWithSource flow) throws InternalException {
-            AbstractTrigger abstractTrigger = flow.getTriggers()
-                .stream()
-                .filter(a -> a.getId().equals(this.abstractTrigger.getId()) && a instanceof WorkerTriggerInterface)
-                .findFirst()
-                .orElseThrow(() -> new InternalException("Couldn't find the trigger '" + this.abstractTrigger.getId() + "' on flow '" + flow.uid() + "'"));
-
-            return this.toBuilder()
-                .flow(flow)
-                .abstractTrigger(abstractTrigger)
-                .build();
-        }
     }
 
     @SuperBuilder
@@ -1141,6 +1129,8 @@ public abstract class AbstractScheduler implements Scheduler {
         private ZonedDateTime next;
 
         private static FlowWithWorkerTriggerNextDate of(FlowWithWorkerTrigger f) {
+            ZonedDateTime nextExecutionDate = f.getTriggerContext().getNextExecutionDate();
+            
             return FlowWithWorkerTriggerNextDate.builder()
                 .flow(f.getFlow())
                 .abstractTrigger(f.getAbstractTrigger())
@@ -1150,13 +1140,13 @@ public abstract class AbstractScheduler implements Scheduler {
                     .namespace(f.getTriggerContext().getNamespace())
                     .flowId(f.getTriggerContext().getFlowId())
                     .triggerId(f.getTriggerContext().getTriggerId())
-                    .date(f.getTriggerContext().getNextExecutionDate())
-                    .nextExecutionDate(f.getTriggerContext().getNextExecutionDate())
+                    .date(nextExecutionDate)
+                    .nextExecutionDate(nextExecutionDate)
                     .backfill(f.getTriggerContext().getBackfill())
                     .stopAfter(f.getTriggerContext().getStopAfter())
                     .build()
                 )
-                .next(f.getTriggerContext().getNextExecutionDate())
+                .next(nextExecutionDate)
                 .build();
         }
     }

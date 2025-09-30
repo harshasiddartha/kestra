@@ -1,8 +1,10 @@
 package io.kestra.repository.postgres;
 
 import io.kestra.core.models.triggers.Trigger;
+import io.kestra.core.runners.ScheduleContextInterface;
 import io.kestra.core.utils.DateUtils;
 import io.kestra.jdbc.repository.AbstractJdbcTriggerRepository;
+import io.kestra.jdbc.runner.JdbcSchedulerContext;
 import io.kestra.jdbc.services.JdbcFilterService;
 import jakarta.inject.Inject;
 import jakarta.inject.Named;
@@ -10,7 +12,10 @@ import jakarta.inject.Singleton;
 import org.jooq.Field;
 import org.jooq.impl.DSL;
 
+import java.time.ZonedDateTime;
 import java.util.Date;
+import java.util.List;
+import java.util.Set;
 
 @Singleton
 @PostgresRepositoryEnabled
