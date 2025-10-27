@@ -4,7 +4,6 @@ import io.kestra.core.models.QueryFilter;
 import io.kestra.core.models.executions.Execution;
 import io.kestra.core.utils.DateUtils;
 import io.kestra.jdbc.repository.AbstractJdbcExecutionRepository;
-import io.kestra.jdbc.runner.AbstractJdbcExecutorStateStorage;
 import io.kestra.jdbc.services.JdbcFilterService;
 import io.micronaut.context.ApplicationContext;
 import jakarta.inject.Inject;
@@ -24,9 +23,8 @@ public class MysqlExecutionRepository extends AbstractJdbcExecutionRepository {
     @Inject
     public MysqlExecutionRepository(@Named("executions") MysqlRepository<Execution> repository,
                                     ApplicationContext applicationContext,
-                                    AbstractJdbcExecutorStateStorage executorStateStorage,
                                     JdbcFilterService filterService) {
-        super(repository, applicationContext, executorStateStorage, filterService);
+        super(repository, applicationContext, filterService);
     }
 
     @Override

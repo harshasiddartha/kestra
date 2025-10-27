@@ -3,6 +3,8 @@ package io.kestra.core.services;
 import io.kestra.core.models.executions.Execution;
 import io.kestra.core.models.flows.State;
 import io.kestra.core.queues.QueueException;
+import io.kestra.core.runners.ExecutionQueuedStateStore;
+import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 
 import java.util.EnumSet;
@@ -11,13 +13,16 @@ import java.util.Set;
 @Singleton
 public class ConcurrencyLimitService {
 
-    protected static final Set<State.Type> VALID_TARGET_STATES =
+    private static final Set<State.Type> VALID_TARGET_STATES =
         EnumSet.of(State.Type.RUNNING, State.Type.CANCELLED, State.Type.FAILED);
+
+    @Inject
+    private ExecutionQueuedStateStore executionQueuedStateStore;
 
     /**
      * Unqueue a queued execution.
      *
-     * @throws IllegalArgumentException in case the execution is not queued.
+     * @throws IllegalArgumentException in case the execution is not queued or is transitionned to an unsupported state.
      */
     public Execution unqueue(Execution execution, State.Type state) throws QueueException {
         if (execution.getState().getCurrent() != State.Type.QUEUED) {
@@ -30,6 +35,8 @@ public class ConcurrencyLimitService {
         if (!VALID_TARGET_STATES.contains(state)) {
             throw new IllegalArgumentException("Invalid target state: " + state + ". Valid states are: " + VALID_TARGET_STATES);
         }
+
+        executionQueuedStateStore.remove(execution);
 
         return execution.withState(state);
     }
