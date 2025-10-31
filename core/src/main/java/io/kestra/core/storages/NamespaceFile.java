@@ -6,6 +6,8 @@ import jakarta.annotation.Nullable;
 import java.net.URI;
 import java.nio.file.Path;
 import java.util.Objects;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Represents a NamespaceFile object.
@@ -19,6 +21,7 @@ public record NamespaceFile(
     URI uri,
     String namespace
 ) {
+    private static final Pattern capturePathWithoutVersion = Pattern.compile("(.*)(?:\\.v\\d+)?$");
 
     public NamespaceFile(Path path, URI uri, String namespace) {
         this(path.toString(), uri, namespace);
@@ -33,7 +36,7 @@ public record NamespaceFile(
      * @return a new {@link NamespaceFile} object
      */
     public static NamespaceFile of(final String namespace) {
-        return of(namespace, (Path) null);
+        return of(namespace, (Path) null, 1);
     }
 
     /**
@@ -43,9 +46,9 @@ public record NamespaceFile(
      * @param namespace The namespace - cannot be {@code null}.
      * @return a new {@link NamespaceFile} object
      */
-    public static NamespaceFile of(final String namespace, @Nullable final URI uri) {
+    public static NamespaceFile of(final String namespace, @Nullable final URI uri, int version) {
         if (uri == null || uri.equals(URI.create("/"))) {
-            return of(namespace, (Path) null);
+            return of(namespace, (Path) null, version);
         }
 
         Path path = Path.of(WindowsUtils.windowsToUnixPath(uri.getPath()));
@@ -61,9 +64,9 @@ public record NamespaceFile(
                     "Invalid Kestra URI. Expected prefix for namespace '%s', but was %s.", namespace, uri)
                 );
             }
-            namespaceFile = of(namespace, Path.of(StorageContext.namespaceFilePrefix(namespace)).relativize(path));
+            namespaceFile = of(namespace, Path.of(StorageContext.namespaceFilePrefix(namespace)).relativize(path), version);
         } else {
-            namespaceFile = of(namespace, path);
+            namespaceFile = of(namespace, path, version);
         }
 
         boolean trailingSlash = uri.toString().endsWith("/");
@@ -86,7 +89,7 @@ public record NamespaceFile(
      * @param namespace The namespace - cannot be {@code null}.
      * @return a new {@link NamespaceFile} object
      */
-    public static NamespaceFile of(final String namespace, @Nullable final Path path) {
+    public static NamespaceFile of(final String namespace, @Nullable final Path path, int version) {
         Objects.requireNonNull(namespace, "namespace cannot be null");
         if (path == null || path.equals(Path.of("/"))) {
             return new NamespaceFile(
@@ -97,12 +100,11 @@ public record NamespaceFile(
         }
 
         Path namespacePrefixPath = Path.of(StorageContext.namespaceFilePrefix(namespace));
-        Path filePath = path.normalize();
-        if (filePath.isAbsolute()) {
-            filePath = filePath.getRoot().relativize(filePath);
-        }
         // Need to remove starting trailing slash for Windows
         String pathWithoutTrailingSlash = path.toString().replaceFirst("^[.]*[\\\\|/]+", "");
+        if (!pathWithoutTrailingSlash.endsWith("/") && version > 1) {
+            pathWithoutTrailingSlash += ".v" + version;
+        }
 
         return new NamespaceFile(
             pathWithoutTrailingSlash,
@@ -118,7 +120,12 @@ public record NamespaceFile(
      * @return The path.
      */
     public Path path(boolean withLeadingSlash) {
-        final String strPath = path.toString();
+        String strPath = path;
+        Matcher matcher = capturePathWithoutVersion.matcher(strPath);
+        if (matcher.matches()) {
+            strPath = matcher.group(1);
+        }
+
         if (!withLeadingSlash) {
             if (strPath.startsWith("/")) {
                 return Path.of(strPath.substring(1));

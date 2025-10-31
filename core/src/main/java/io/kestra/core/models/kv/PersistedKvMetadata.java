@@ -47,9 +47,6 @@ public class PersistedKvMetadata implements DeletedInterface, TenantInterface, H
     private Instant expirationDate;
 
     @Nullable
-    private Instant created;
-
-    @Nullable
     private Instant updated;
 
     private boolean deleted;
@@ -61,19 +58,17 @@ public class PersistedKvMetadata implements DeletedInterface, TenantInterface, H
             .name(kvEntry.key())
             .version(kvEntry.version())
             .description(kvEntry.description())
-            .created(kvEntry.creationDate())
             .updated(kvEntry.updateDate())
             .expirationDate(kvEntry.expirationDate())
             .build();
     }
 
     public PersistedKvMetadata asLast() {
-        Instant saveDate = Instant.now();
-        return this.toBuilder().created(Optional.ofNullable(this.created).orElse(saveDate)).updated(saveDate).last(true).build();
+        return this.toBuilder().updated(Instant.now()).last(true).build();
     }
 
     @Override
     public String uid() {
-        return IdUtils.fromParts(getTenantId(), getNamespace(), getName(), getVersion().toString());
+        return IdUtils.fromParts(getTenantId(), getNamespace(), getName(), String.valueOf(getVersion()));
     }
 }

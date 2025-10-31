@@ -3,10 +3,7 @@ package io.kestra.core.runners.pebble.functions;
 import io.kestra.core.runners.LocalPath;
 import io.kestra.core.runners.LocalPathFactory;
 import io.kestra.core.services.FlowService;
-import io.kestra.core.storages.InternalNamespace;
-import io.kestra.core.storages.Namespace;
-import io.kestra.core.storages.StorageContext;
-import io.kestra.core.storages.StorageInterface;
+import io.kestra.core.storages.*;
 import io.kestra.core.utils.Slugify;
 import io.micronaut.context.annotation.Value;
 import io.pebbletemplates.pebble.error.PebbleException;
@@ -43,6 +40,9 @@ abstract class AbstractFileFunction implements Function {
 
     @Inject
     protected LocalPathFactory localPathFactory;
+
+    @Inject
+    protected NamespaceFactory namespaceFactory;
 
     @Value("${" + LocalPath.ENABLE_FILE_FUNCTIONS_CONFIG + ":true}")
     protected boolean enableFileProtocol;
@@ -84,7 +84,7 @@ abstract class AbstractFileFunction implements Function {
                 } else if(str.startsWith(Namespace.NAMESPACE_FILE_SCHEME)) {
                     URI nsFileUri = URI.create(str);
                     namespace = checkedAllowedNamespaceAndReturnNamespace(args, nsFileUri, tenantId, flow);
-                    InternalNamespace internalNamespace = new InternalNamespace(flow.get(TENANT_ID), namespace, storageInterface);
+                    Namespace internalNamespace = namespaceFactory.of(flow.get(TENANT_ID), namespace, storageInterface);
                     fileUri = internalNamespace.get(Path.of(nsFileUri.getPath())).uri();
                 } else if (URI_PATTERN.matcher(str).matches()) {
                     // it is an unsupported URI

@@ -1,5 +1,10 @@
 package io.kestra.core.storages;
 
+import io.kestra.core.models.QueryFilter;
+import io.kestra.core.models.namespaces.files.NamespaceFileMetadata;
+import io.kestra.core.repositories.ArrayListTotal;
+import io.kestra.core.repositories.NamespaceFileMetadataRepositoryInterface;
+import io.micronaut.data.model.Pageable;
 import jakarta.annotation.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,6 +18,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Predicate;
+import java.util.stream.Stream;
 
 /**
  * The default {@link Namespace} implementation.
@@ -28,6 +34,7 @@ public class InternalNamespace implements Namespace {
     private final String namespace;
     private final String tenant;
     private final StorageInterface storage;
+    private final NamespaceFileMetadataRepositoryInterface namespaceFileMetadataRepository;
     private final Logger logger;
 
     /**
@@ -36,8 +43,8 @@ public class InternalNamespace implements Namespace {
      * @param namespace The namespace
      * @param storage   The storage.
      */
-    public InternalNamespace(@Nullable final String tenant, final String namespace, final StorageInterface storage) {
-        this(LOG, tenant, namespace, storage);
+    public InternalNamespace(@Nullable final String tenant, final String namespace, final StorageInterface storage, final NamespaceFileMetadataRepositoryInterface namespaceFileMetadataRepository) {
+        this(LOG, tenant, namespace, storage, namespaceFileMetadataRepository);
     }
 
     /**
@@ -48,10 +55,11 @@ public class InternalNamespace implements Namespace {
      * @param tenant    The tenant.
      * @param storage   The storage.
      */
-    public InternalNamespace(final Logger logger, @Nullable final String tenant, final String namespace, final StorageInterface storage) {
+    public InternalNamespace(final Logger logger, @Nullable final String tenant, final String namespace, final StorageInterface storage, final NamespaceFileMetadataRepositoryInterface namespaceFileMetadataRepositoryInterface) {
         this.logger = Objects.requireNonNull(logger, "logger cannot be null");
         this.namespace = Objects.requireNonNull(namespace, "namespace cannot be null");
         this.storage = Objects.requireNonNull(storage, "storage cannot be null");
+        this.namespaceFileMetadataRepository = Objects.requireNonNull(namespaceFileMetadataRepositoryInterface, "namespaceFileMetadataRepository cannot be null");
         this.tenant = tenant;
     }
 
@@ -73,35 +81,30 @@ public class InternalNamespace implements Namespace {
      **/
     @Override
     public List<NamespaceFile> all() throws IOException {
-        return all(false);
+        return all(null);
     }
 
     /**
      * {@inheritDoc}
      **/
     @Override
-    public List<NamespaceFile> all(final boolean includeDirectories) throws IOException {
-        return all(null, includeDirectories);
+    public List<NamespaceFile> all(final String containing) throws IOException {
+        ArrayListTotal<NamespaceFileMetadata> namespaceFilesMetadata = namespaceFileMetadataRepository.find(Pageable.UNPAGED, tenant, Stream.concat(
+            Stream.of(QueryFilter.builder().field(QueryFilter.Field.NAMESPACE).operation(QueryFilter.Op.EQUALS).value(namespace).build()),
+            Optional.ofNullable(containing).map(p -> QueryFilter.builder().field(QueryFilter.Field.QUERY).operation(QueryFilter.Op.EQUALS).value(p).build()).stream()
+        ).toList(), false);
+
+        return namespaceFilesMetadata.map(nsFileMetadata -> NamespaceFile.of(namespace, Path.of(nsFileMetadata.getPath()), nsFileMetadata.getVersion()));
     }
 
     /**
      * {@inheritDoc}
      **/
     @Override
-    public List<NamespaceFile> all(final String prefix, final boolean includeDirectories) throws IOException {
-        URI namespacePrefix = URI.create(NamespaceFile.of(namespace, Optional.ofNullable(prefix).map(Path::of).orElse(null)).storagePath().toString().replace("\\","/") + "/");
-        return storage.allByPrefix(tenant, namespace, namespacePrefix, includeDirectories)
-            .stream()
-            .map(uri -> new NamespaceFile(relativize(uri), uri, namespace))
-            .toList();
-    }
+    public NamespaceFile get(final Path path) throws IOException {
+        int version = namespaceFileMetadataRepository.findByPath(tenant, namespace, path.toString()).map(NamespaceFileMetadata::getVersion).orElse(1);
 
-    /**
-     * {@inheritDoc}
-     **/
-    @Override
-    public NamespaceFile get(final Path path) {
-        return NamespaceFile.of(namespace, path);
+        return NamespaceFile.of(namespace, path, version);
     }
 
     public Path relativize(final URI uri) {
@@ -123,8 +126,23 @@ public class InternalNamespace implements Namespace {
      **/
     @Override
     public InputStream getFileContent(final Path path) throws IOException {
-        Path namespaceFilePath = NamespaceFile.of(namespace, path).storagePath();
+        Optional<NamespaceFileMetadata> inRepository = namespaceFileMetadataRepository.findByPath(tenant, namespace, path.toString());
+        int version = inRepository.map(NamespaceFileMetadata::getVersion).orElse(1);
+
+        Path namespaceFilePath = NamespaceFile.of(namespace, path, version).storagePath();
         return storage.get(tenant, namespace, namespaceFilePath.toUri());
+    }
+
+    @Override
+    public FileAttributes getFileMetadata(Path path) throws IOException {
+        return namespaceFileMetadataRepository.findByPath(tenant, namespace, path.toString()).map(NamespaceFileAttributes::new).orElse(null);
+    }
+
+    @Override
+    public boolean exists(Path path) throws IOException {
+        return namespaceFileMetadataRepository.findByPath(tenant, namespace, path.toString())
+            .map(namespaceFileMetadata -> !namespaceFileMetadata.isDeleted())
+            .orElse(false);
     }
 
     /**
@@ -132,16 +150,25 @@ public class InternalNamespace implements Namespace {
      **/
     @Override
     public NamespaceFile putFile(final Path path, final InputStream content, final Conflicts onAlreadyExist) throws IOException, URISyntaxException {
-        Path namespaceFilesPrefix = NamespaceFile.of(namespace, path).storagePath();
+        Optional<NamespaceFileMetadata> inRepository = namespaceFileMetadataRepository.findByPath(tenant, namespace, path.toString());
+        int version = inRepository.map(NamespaceFileMetadata::getVersion).orElse(1);
+        Path storagePath = NamespaceFile.of(namespace, path, version).storagePath();
         // Remove Windows letter
-        URI cleanUri = new URI(namespaceFilesPrefix.toUri().toString().replaceFirst("^file:///[a-zA-Z]:", ""));
-        final boolean exists = storage.exists(tenant, namespace, cleanUri);
+        URI cleanUri = new URI(storagePath.toUri().toString().replaceFirst("^file:///[a-zA-Z]:", ""));
 
         return switch (onAlreadyExist) {
             case OVERWRITE -> {
                 URI uri = storage.put(tenant, namespace, cleanUri, content);
+                namespaceFileMetadataRepository.save(
+                    inRepository.orElse(NamespaceFileMetadata.builder()
+                        .tenantId(tenant)
+                        .namespace(namespace)
+                        .path(path.toString())
+                        .size(storage.getAttributes(tenant, namespace, cleanUri).getSize())
+                        .build())
+                );
                 NamespaceFile namespaceFile = new NamespaceFile(relativize(uri), uri, namespace);
-                if (exists) {
+                if (inRepository.isPresent()) {
                     logger.debug(String.format(
                         "File '%s' overwritten into namespace '%s'.",
                         path,
@@ -157,8 +184,16 @@ public class InternalNamespace implements Namespace {
                 yield namespaceFile;
             }
             case ERROR -> {
-                if (!exists) {
-                    URI uri = storage.put(tenant, namespace, namespaceFilesPrefix.toUri(), content);
+                if (inRepository.isEmpty()) {
+                    URI uri = storage.put(tenant, namespace, cleanUri, content);
+                    namespaceFileMetadataRepository.save(
+                        NamespaceFileMetadata.builder()
+                            .tenantId(tenant)
+                            .namespace(namespace)
+                            .path(path.toString())
+                            .size(storage.getAttributes(tenant, namespace, cleanUri).getSize())
+                            .build()
+                    );
                     yield new NamespaceFile(relativize(uri), uri, namespace);
                 } else {
                     throw new IOException(String.format(
@@ -170,8 +205,16 @@ public class InternalNamespace implements Namespace {
                 }
             }
             case SKIP -> {
-                if (!exists) {
-                    URI uri = storage.put(tenant, namespace, namespaceFilesPrefix.toUri(), content);
+                if (inRepository.isEmpty()) {
+                    URI uri = storage.put(tenant, namespace, cleanUri, content);
+                    namespaceFileMetadataRepository.save(
+                        NamespaceFileMetadata.builder()
+                            .tenantId(tenant)
+                            .namespace(namespace)
+                            .path(path.toString())
+                            .size(storage.getAttributes(tenant, namespace, cleanUri).getSize())
+                            .build()
+                    );
                     NamespaceFile namespaceFile = new NamespaceFile(relativize(uri), uri, namespace);
                     logger.debug(String.format(
                         "File '%s' added to namespace '%s'.",
@@ -186,7 +229,7 @@ public class InternalNamespace implements Namespace {
                         namespace,
                         Conflicts.SKIP
                     ));
-                    URI uri = URI.create(StorageContext.KESTRA_PROTOCOL + namespaceFilesPrefix);
+                    URI uri = URI.create(StorageContext.KESTRA_PROTOCOL + storagePath);
                     yield new NamespaceFile(relativize(uri), uri, namespace);
                 }
             }
@@ -198,7 +241,15 @@ public class InternalNamespace implements Namespace {
      **/
     @Override
     public URI createDirectory(Path path) throws IOException {
-        return storage.createDirectory(tenant, namespace, NamespaceFile.of(namespace, path).storagePath().toUri());
+        namespaceFileMetadataRepository.save(
+            NamespaceFileMetadata.builder()
+                .tenantId(tenant)
+                .namespace(namespace)
+                .path(path.toString())
+                .size(0L)
+                .build()
+        );
+        return storage.createDirectory(tenant, namespace, NamespaceFile.of(namespace, path, 1).storagePath().toUri());
     }
 
     /**
@@ -206,6 +257,6 @@ public class InternalNamespace implements Namespace {
      **/
     @Override
     public boolean delete(Path path) throws IOException {
-        return storage.delete(tenant, namespace, URI.create(path.toString().replace("\\","/")));
+        return storage.delete(tenant, namespace, URI.create(path.toString().replace("\\", "/")));
     }
 }

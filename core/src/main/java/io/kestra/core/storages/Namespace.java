@@ -38,18 +38,11 @@ public interface Namespace {
     List<NamespaceFile> all() throws IOException;
 
     /**
-     * Gets the URIs of all namespace files for the contextual namespace.
+     * Gets the URIs of all namespace files for the current namespace that contains the optional <code>containing</code> parameter.
      *
      * @return The list of {@link URI}.
      */
-    List<NamespaceFile> all(boolean includeDirectories) throws IOException;
-
-    /**
-     * Gets the URIs of all namespace files for the current namespace.
-     *
-     * @return The list of {@link URI}.
-     */
-    List<NamespaceFile> all(String prefix, boolean includeDirectories) throws IOException;
+    List<NamespaceFile> all(String containing) throws IOException;
 
     /**
      * Gets a {@link NamespaceFile} for the given path and the current namespace.
@@ -57,7 +50,7 @@ public interface Namespace {
      * @param path the file path.
      * @return a new {@link NamespaceFile}
      */
-    NamespaceFile get(Path path);
+    NamespaceFile get(Path path) throws IOException;
 
     /**
      * Retrieves the URIs of all namespace files for the current namespace matching the given predicate.
@@ -91,6 +84,16 @@ public interface Namespace {
      * @throws IOException              if an error happens while accessing the file.
      */
     InputStream getFileContent(Path path) throws IOException;
+
+    /**
+     * Retrieves the metadata of the namespace file at the given path.
+     *
+     * @param path the file path.
+     * @return the {@link FileAttributes}.
+     */
+    FileAttributes getFileMetadata(Path path) throws IOException;
+
+    boolean exists(Path path) throws IOException;
 
     default NamespaceFile putFile(Path path, InputStream content) throws IOException, URISyntaxException {
         return putFile(path, content, Conflicts.OVERWRITE);

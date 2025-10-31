@@ -275,6 +275,16 @@ public record QueryFilter(
                     Field.UPDATED
                 );
             }
+        },
+        NAMESPACE_FILE_METADATA {
+            @Override
+            public List<Field> supportedField() {
+                return List.of(
+                    Field.QUERY,
+                    Field.NAMESPACE,
+                    Field.UPDATED
+                );
+            }
         };
 
         public abstract List<Field> supportedField();
