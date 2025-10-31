@@ -15,7 +15,9 @@ ALTER TABLE queues ALTER COLUMN "type" ENUM(
     'io.kestra.core.runners.SubflowExecutionEnd',
     'io.kestra.core.models.flows.FlowInterface',
     'io.kestra.core.runners.MultipleConditionEvent',
-    'io.kestra.core.runners.ExecutionEvent'
+    'io.kestra.core.runners.ExecutionEvent',
+    'io.kestra.ee.models.tenants.Tenant',
+    'io.kestra.ee.models.Namespace'
 ) NOT NULL;
 
 DROP TABLE IF EXISTS executorstate;
